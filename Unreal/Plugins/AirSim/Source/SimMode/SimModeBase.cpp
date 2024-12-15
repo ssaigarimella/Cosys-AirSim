@@ -35,14 +35,14 @@
 
 #include "DrawDebugHelpers.h"
 
-//TODO: this is going to cause circular references which is fine here but
-//in future we should consider moving SimMode not derived from AActor and move
-//it to AirLib and directly implement WorldSimApiBase interface
+// TODO: this is going to cause circular references which is fine here but
+// in future we should consider moving SimMode not derived from AActor and move
+// it to AirLib and directly implement WorldSimApiBase interface
 #include "WorldSimApi.h"
 
-ASimModeBase* ASimModeBase::SIMMODE = nullptr;
+ASimModeBase *ASimModeBase::SIMMODE = nullptr;
 
-ASimModeBase* ASimModeBase::getSimMode()
+ASimModeBase *ASimModeBase::getSimMode()
 {
     return SIMMODE;
 }
@@ -71,14 +71,16 @@ ASimModeBase::ASimModeBase()
     sky_sphere_class_ = sky_sphere_class.Succeeded() ? sky_sphere_class.Class : nullptr;
 
     static ConstructorHelpers::FClassFinder<UUserWidget> loading_screen_class_find(TEXT("WidgetBlueprint'/AirSim/Blueprints/BP_LoadingScreenWidget'"));
-    if (loading_screen_class_find.Succeeded()) {
+    if (loading_screen_class_find.Succeeded())
+    {
         auto loading_screen_class = loading_screen_class_find.Class;
         loading_screen_widget_ = CreateWidget<ULoadingScreenWidget>(this->GetWorld(), loading_screen_class);
     }
     else
         loading_screen_widget_ = nullptr;
     static ConstructorHelpers::FObjectFinder<UMaterial> domain_rand_mat_finder(TEXT("Material'/AirSim/HUDAssets/DomainRandomizationMaterial.DomainRandomizationMaterial'"));
-    if (domain_rand_mat_finder.Succeeded()) {
+    if (domain_rand_mat_finder.Succeeded())
+    {
         domain_rand_material_ = domain_rand_mat_finder.Object;
     }
 }
@@ -87,13 +89,14 @@ void ASimModeBase::toggleLoadingScreen(bool is_visible)
 {
     if (loading_screen_widget_ == nullptr)
         return;
-    else {
-        UAirBlueprintLib::RunCommandOnGameThread([this, is_visible]() {
+    else
+    {
+        UAirBlueprintLib::RunCommandOnGameThread([this, is_visible]()
+                                                 {
             if (is_visible)
                 loading_screen_widget_->SetVisibility(ESlateVisibility::Visible);
             else
-                loading_screen_widget_->SetVisibility(ESlateVisibility::Hidden);
-        },
+                loading_screen_widget_->SetVisibility(ESlateVisibility::Hidden); },
                                                  true);
     }
 }
@@ -105,25 +108,28 @@ void ASimModeBase::BeginPlay()
     debug_reporter_.initialize(false);
     debug_reporter_.reset();
 
-    //get player start
-    //this must be done from within actor otherwise we don't get player start
-    TArray<AActor*> pawns;
+    // get player start
+    // this must be done from within actor otherwise we don't get player start
+    TArray<AActor *> pawns;
     getExistingVehiclePawns(pawns);
     bool have_existing_pawns = pawns.Num() > 0;
-    AActor* fpv_pawn = nullptr;
+    AActor *fpv_pawn = nullptr;
     // Grab player location
     FTransform player_start_transform;
     FVector player_loc;
-    if (have_existing_pawns) {
+    if (have_existing_pawns)
+    {
         fpv_pawn = pawns[0];
     }
-    else {
-        APlayerController* player_controller = this->GetWorld()->GetFirstPlayerController();
+    else
+    {
+        APlayerController *player_controller = this->GetWorld()->GetFirstPlayerController();
         fpv_pawn = player_controller->GetViewTarget();
     }
 
     player_start_transform = fpv_pawn->GetActorTransform();
-    if (getSettings().move_world_origin) {
+    if (getSettings().move_world_origin)
+    {
         player_loc = player_start_transform.GetLocation();
         // Move the world origin to the player's location (this moves the coordinate system and adds
         // a corresponding offset to all positions to compensate for the shift)
@@ -162,10 +168,11 @@ void ASimModeBase::BeginPlay()
     if (getSettings().recording_setting.enabled)
         startRecording();
 
-    UWorld* World = GetWorld();
-    if (World) {
+    UWorld *World = GetWorld();
+    if (World)
+    {
         UWeatherLib::initWeather(World, spawned_actors_);
-        //UWeatherLib::showWeatherMenu(World);
+        // UWeatherLib::showWeatherMenu(World);
     }
     UAirBlueprintLib::GenerateActorMap(this, scene_object_map);
 
@@ -177,19 +184,23 @@ void ASimModeBase::BeginPlay()
     InitializeAnnotation();
 }
 
-const NedTransform& ASimModeBase::getGlobalNedTransform()
+const NedTransform &ASimModeBase::getGlobalNedTransform()
 {
     return *global_ned_transform_;
 }
 
 void ASimModeBase::checkVehicleReady()
 {
-    for (auto& api : api_provider_->getVehicleApis()) {
-        if (api) { //sim-only vehicles may have api as null
+    for (auto &api : api_provider_->getVehicleApis())
+    {
+        if (api)
+        { // sim-only vehicles may have api as null
             std::string message;
-            if (!api->isReady(message)) {
+            if (!api->isReady(message))
+            {
                 UAirBlueprintLib::LogMessage("Vehicle was not initialized", "", LogDebugLevel::Failure);
-                if (message.size() > 0) {
+                if (message.size() > 0)
+                {
                     UAirBlueprintLib::LogMessage(message.c_str(), "", LogDebugLevel::Failure);
                 }
                 UAirBlueprintLib::LogMessage("Tip: check connection info in settings.json", "", LogDebugLevel::Informational);
@@ -202,180 +213,213 @@ void ASimModeBase::RunCommandOnGameThread(TFunction<void()> InFunction, bool wai
 {
     if (::IsInGameThread())
         InFunction();
-    else {
+    else
+    {
         FGraphEventRef task = FFunctionGraphTask::CreateAndDispatchWhenReady(MoveTemp(InFunction), InStatId, nullptr, ENamedThreads::GameThread);
         if (wait)
             FTaskGraphInterface::Get().WaitUntilTaskCompletes(task);
     }
 }
 
-void ASimModeBase::InitializeAnnotation() {
-	for (auto& annotator_setting : getSettings().annotator_settings) {
+void ASimModeBase::InitializeAnnotation()
+{
+    for (auto &annotator_setting : getSettings().annotator_settings)
+    {
         FString name = FString(annotator_setting.name.c_str());
         FObjectAnnotator::AnnotatorType type = FObjectAnnotator::AnnotatorType(annotator_setting.type);
-		bool set_direct = annotator_setting.set_direct;
+        bool set_direct = annotator_setting.set_direct;
         FString texture_path = FString(annotator_setting.texture_path.c_str());
         FString texture_prefix = FString(annotator_setting.texture_prefix.c_str());
         float max_view_distance = annotator_setting.max_view_distance;
         annotators_.Emplace(name, FObjectAnnotator(name, type, annotator_setting.show_by_default, set_direct, texture_path, texture_prefix, max_view_distance));
-		annotators_[name].Initialize(this->GetLevel());
+        annotators_[name].Initialize(this->GetLevel());
         AddAnnotatorCamera(name, type, max_view_distance);
         ForceUpdateAnnotation(name);
         updateAnnotation(name);
-	}
+    }
 }
 
-bool ASimModeBase::IsAnnotationRGBValid(FString annotation_name, FColor color) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::IsAnnotationRGBValid(FString annotation_name, FColor color)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-	return annotators_[annotation_name].IsRGBColorValid(color);
+    return annotators_[annotation_name].IsRGBColorValid(color);
 }
 
 void ASimModeBase::InitializeInstanceSegmentation()
 {
-    if (getSettings().initial_instance_segmentation) {
+    if (getSettings().initial_instance_segmentation)
+    {
         instance_segmentation_annotator_.Initialize(this->GetLevel());
     }
     ForceUpdateInstanceSegmentation();
     updateInstanceSegmentationAnnotation();
 }
 
-bool ASimModeBase::AddRGBDirectAnnotationTagToActor(FString annotation_name, AActor* actor, FColor color, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddRGBDirectAnnotationTagToActor(FString annotation_name, AActor *actor, FColor color, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
-        return false;
-    }
-	FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(color.R) + FString(TEXT("_")) + FString::FromInt(color.G) + FString(TEXT("_")) + FString::FromInt(color.B);
-	actor->Tags.Emplace(FName(*tag));
-    if(update_annotation)
-        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
-    return true;
-}
-
-bool ASimModeBase::UpdateRGBDirectAnnotationTagToActor(FString annotation_name, AActor* actor, FColor color, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
-        return false;
-    }
-    if (!annotators_[annotation_name].IsDirect()) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
-        return false;
-    }
-    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
-        FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
-        return false;
-    }
-    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(color.R) + FString(TEXT("_")) + FString::FromInt(color.G) + FString(TEXT("_")) + FString::FromInt(color.B);
-	actor->Tags[found_tag] = FName(*tag);
-    if (update_annotation)
-        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
-    return true;
-}
-
-bool ASimModeBase::AddRGBIndexAnnotationTagToActor(FString annotation_name, AActor* actor, int32 index, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].IsDirect()) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
-        return false;
-    }
-    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(index);
-    actor->Tags.Emplace(FName(*tag));
-    if (update_annotation)
-        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
-    return true;
-}
-
-bool ASimModeBase::UpdateRGBIndexAnnotationTagToActor(FString annotation_name, AActor* actor, int32 index, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].IsDirect()) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
-        return false;
-    }
-    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
-        FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
-        return false;
-    }
-    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(index);
-    actor->Tags[found_tag] = FName(*tag);
-    if (update_annotation)
-        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
-    return true;
-}
-
-bool ASimModeBase::AddRGBDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, FColor color, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
-        return false;
-    }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
-        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
-        return false;
-    }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
     FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(color.R) + FString(TEXT("_")) + FString::FromInt(color.G) + FString(TEXT("_")) + FString::FromInt(color.B);
+    actor->Tags.Emplace(FName(*tag));
+    if (update_annotation)
+        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
+    return true;
+}
+
+bool ASimModeBase::UpdateRGBDirectAnnotationTagToActor(FString annotation_name, AActor *actor, FColor color, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
+        return false;
+    }
+    if (!annotators_[annotation_name].IsDirect())
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
+        return false;
+    }
+    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                     {
+        FString tag = tagFName.ToString();
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
+        return false;
+    }
+    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(color.R) + FString(TEXT("_")) + FString::FromInt(color.G) + FString(TEXT("_")) + FString::FromInt(color.B);
+    actor->Tags[found_tag] = FName(*tag);
+    if (update_annotation)
+        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
+    return true;
+}
+
+bool ASimModeBase::AddRGBIndexAnnotationTagToActor(FString annotation_name, AActor *actor, int32 index, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].IsDirect())
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
+        return false;
+    }
+    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(index);
+    actor->Tags.Emplace(FName(*tag));
+    if (update_annotation)
+        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
+    return true;
+}
+
+bool ASimModeBase::UpdateRGBIndexAnnotationTagToActor(FString annotation_name, AActor *actor, int32 index, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].IsDirect())
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
+        return false;
+    }
+    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                     {
+        FString tag = tagFName.ToString();
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
+        return false;
+    }
+    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(index);
+    actor->Tags[found_tag] = FName(*tag);
+    if (update_annotation)
+        return AddNewActorToAnnotation(annotation_name, actor, update_annotation);
+    return true;
+}
+
+bool ASimModeBase::AddRGBDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, FColor color, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
+        return false;
+    }
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
+        return false;
+    }
+    if (!annotators_[annotation_name].IsDirect())
+    {
+        UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
+        return false;
+    }
+    FString tag = annotation_name + FString(TEXT("_")) + FString::FromInt(color.R) + FString(TEXT("_")) + FString::FromInt(color.G) + FString(TEXT("_")) + FString::FromInt(color.B);
     component->ComponentTags.Emplace(FName(*tag));
     if (update_annotation)
         return AddNewActorToAnnotation(annotation_name, component->GetAttachmentRootActor(), update_annotation);
     return true;
 }
 
-bool ASimModeBase::UpdateRGBDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, FColor color, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateRGBDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, FColor color, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                                  {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -386,16 +430,20 @@ bool ASimModeBase::UpdateRGBDirectAnnotationTagToComponent(FString annotation_na
     return true;
 }
 
-bool ASimModeBase::AddRGBIndexAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, int32 index, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddRGBIndexAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, int32 index, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].IsDirect()) {
+    if (annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
         return false;
     }
@@ -406,24 +454,29 @@ bool ASimModeBase::AddRGBIndexAnnotationTagToComponent(FString annotation_name, 
     return true;
 }
 
-bool ASimModeBase::UpdateRGBIndexAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, int32 index, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateRGBIndexAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, int32 index, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].IsDirect()) {
+    if (annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                                  {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -434,12 +487,15 @@ bool ASimModeBase::UpdateRGBIndexAnnotationTagToComponent(FString annotation_nam
     return true;
 }
 
-bool ASimModeBase::AddGreyscaleAnnotationTagToActor(FString annotation_name, AActor* actor, float greyscale_value, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddGreyscaleAnnotationTagToActor(FString annotation_name, AActor *actor, float greyscale_value, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *annotation_name);
         return false;
     }
@@ -450,20 +506,24 @@ bool ASimModeBase::AddGreyscaleAnnotationTagToActor(FString annotation_name, AAc
     return true;
 }
 
-bool ASimModeBase::UpdateGreyscaleAnnotationTagToActor(FString annotation_name, AActor* actor, float greyscale_value, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateGreyscaleAnnotationTagToActor(FString annotation_name, AActor *actor, float greyscale_value, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *annotation_name);
         return false;
     }
-    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                     {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -474,12 +534,15 @@ bool ASimModeBase::UpdateGreyscaleAnnotationTagToActor(FString annotation_name, 
     return true;
 }
 
-bool ASimModeBase::AddGreyscaleAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, float greyscale_value, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddGreyscaleAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, float greyscale_value, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *annotation_name);
         return false;
     }
@@ -490,20 +553,24 @@ bool ASimModeBase::AddGreyscaleAnnotationTagToComponent(FString annotation_name,
     return true;
 }
 
-bool ASimModeBase::UpdateGreyscaleAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, float greyscale_value, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateGreyscaleAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, float greyscale_value, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *annotation_name);
         return false;
     }
-    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                                  {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -514,16 +581,20 @@ bool ASimModeBase::UpdateGreyscaleAnnotationTagToComponent(FString annotation_na
     return true;
 }
 
-bool ASimModeBase::AddTextureDirectAnnotationTagToActorByPath(FString annotation_name, AActor* actor, FString texture_path, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddTextureDirectAnnotationTagToActorByPath(FString annotation_name, AActor *actor, FString texture_path, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
@@ -534,24 +605,29 @@ bool ASimModeBase::AddTextureDirectAnnotationTagToActorByPath(FString annotation
     return true;
 }
 
-bool ASimModeBase::UpdateTextureDirectAnnotationTagToActorByPath(FString annotation_name, AActor* actor, FString texture_path, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateTextureDirectAnnotationTagToActorByPath(FString annotation_name, AActor *actor, FString texture_path, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                     {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -562,16 +638,20 @@ bool ASimModeBase::UpdateTextureDirectAnnotationTagToActorByPath(FString annotat
     return true;
 }
 
-bool ASimModeBase::AddTextureDirectAnnotationTagToComponentByPath(FString annotation_name, UMeshComponent* component, FString texture_path, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddTextureDirectAnnotationTagToComponentByPath(FString annotation_name, UMeshComponent *component, FString texture_path, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
@@ -582,24 +662,29 @@ bool ASimModeBase::AddTextureDirectAnnotationTagToComponentByPath(FString annota
     return true;
 }
 
-bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponentByPath(FString annotation_name, UMeshComponent* component, FString texture_path, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponentByPath(FString annotation_name, UMeshComponent *component, FString texture_path, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                                  {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -610,16 +695,20 @@ bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponentByPath(FString ann
     return true;
 }
 
-bool ASimModeBase::AddTextureDirectAnnotationTagToActor(FString annotation_name, AActor* actor, UTexture* texture, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddTextureDirectAnnotationTagToActor(FString annotation_name, AActor *actor, UTexture *texture, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
@@ -633,24 +722,29 @@ bool ASimModeBase::AddTextureDirectAnnotationTagToActor(FString annotation_name,
     return true;
 }
 
-bool ASimModeBase::UpdateTextureDirectAnnotationTagToActor(FString annotation_name, AActor* actor, UTexture* texture, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateTextureDirectAnnotationTagToActor(FString annotation_name, AActor *actor, UTexture *texture, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = actor->Tags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                     {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -664,16 +758,20 @@ bool ASimModeBase::UpdateTextureDirectAnnotationTagToActor(FString annotation_na
     return true;
 }
 
-bool ASimModeBase::AddTextureDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, UTexture* texture, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddTextureDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, UTexture *texture, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
@@ -687,24 +785,29 @@ bool ASimModeBase::AddTextureDirectAnnotationTagToComponent(FString annotation_n
     return true;
 }
 
-bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, UTexture* texture, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, UTexture *texture, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (!annotators_[annotation_name].IsDirect()) {
+    if (!annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *annotation_name);
         return false;
     }
-    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName& tagFName) {
+    int32 found_tag = component->ComponentTags.IndexOfByPredicate([annotation_name](const FName &tagFName)
+                                                                  {
         FString tag = tagFName.ToString();
-        return tag.Contains(annotation_name);
-        });
-    if (found_tag == INDEX_NONE) {
+        return tag.Contains(annotation_name); });
+    if (found_tag == INDEX_NONE)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find a tag for this component."), *annotation_name);
         return false;
     }
@@ -718,16 +821,20 @@ bool ASimModeBase::UpdateTextureDirectAnnotationTagToComponent(FString annotatio
     return true;
 }
 
-bool ASimModeBase::EnableTextureByPathAnnotationTagToActor(FString annotation_name, AActor* actor, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::EnableTextureByPathAnnotationTagToActor(FString annotation_name, AActor *actor, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].IsDirect()) {
+    if (annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to relative path mode."), *annotation_name);
         return false;
     }
@@ -738,16 +845,20 @@ bool ASimModeBase::EnableTextureByPathAnnotationTagToActor(FString annotation_na
     return true;
 }
 
-bool ASimModeBase::EnableTextureByPathAnnotationTagToComponent(FString annotation_name, UMeshComponent* component, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::EnableTextureByPathAnnotationTagToComponent(FString annotation_name, UMeshComponent *component, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[annotation_name].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *annotation_name);
         return false;
     }
-    if (annotators_[annotation_name].IsDirect()) {
+    if (annotators_[annotation_name].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to relative path mode."), *annotation_name);
         return false;
     }
@@ -760,38 +871,47 @@ bool ASimModeBase::EnableTextureByPathAnnotationTagToComponent(FString annotatio
 
 void ASimModeBase::InitializeMaterialStencils()
 {
-	FString materialListContent;
-	if (FFileHelper::LoadFileToString(materialListContent, UTF8_TO_TCHAR(getSettings().material_list_file.c_str()))) {
-		UAirBlueprintLib::InitializeMeshStencilIDs(true, materialListContent);
-	}
-	else {
-		UAirBlueprintLib::LogMessage("Cannot start stencil initialization. Material list was not found:",
-            UTF8_TO_TCHAR(getSettings().material_list_file.c_str()), LogDebugLevel::Failure);
-	}
+    FString materialListContent;
+    if (FFileHelper::LoadFileToString(materialListContent, UTF8_TO_TCHAR(getSettings().material_list_file.c_str())))
+    {
+        UAirBlueprintLib::InitializeMeshStencilIDs(true, materialListContent);
+    }
+    else
+    {
+        UAirBlueprintLib::LogMessage("Cannot start stencil initialization. Material list was not found:",
+                                     UTF8_TO_TCHAR(getSettings().material_list_file.c_str()), LogDebugLevel::Failure);
+    }
 }
 
-std::vector<std::string> ASimModeBase::GetAllInstanceSegmentationMeshIDs() {
+std::vector<std::string> ASimModeBase::GetAllInstanceSegmentationMeshIDs()
+{
     return instance_segmentation_annotator_.GetAllComponentNames();
 }
 
-std::vector<msr::airlib::Vector3r> ASimModeBase::GetInstanceSegmentationColorMap() {
+std::vector<msr::airlib::Vector3r> ASimModeBase::GetInstanceSegmentationColorMap()
+{
     TArray<FColor> color_map = instance_segmentation_annotator_.GetColorMap();
     std::vector<msr::airlib::Vector3r> color_map_vector;
-    for (FColor color : color_map) {
+    for (FColor color : color_map)
+    {
         color_map_vector.push_back(msr::airlib::Vector3r(color.R, color.G, color.B));
     }
     return color_map_vector;
 }
 
-TMap<UMeshComponent*, FString> ASimModeBase::GetInstanceSegmentationComponentToNameMap() {
+TMap<UMeshComponent *, FString> ASimModeBase::GetInstanceSegmentationComponentToNameMap()
+{
     return instance_segmentation_annotator_.GetComponentToNameMap();
 }
 
-std::vector<msr::airlib::Pose> ASimModeBase::GetAllInstanceSegmentationMeshPoses(bool ned, bool only_visible) {
+std::vector<msr::airlib::Pose> ASimModeBase::GetAllInstanceSegmentationMeshPoses(bool ned, bool only_visible)
+{
     std::vector<msr::airlib::Pose> retval;
-    TMap<FString, UMeshComponent*> nameToComponentMapTemp = instance_segmentation_annotator_.GetNameToComponentMap();
-    for (auto const& element : nameToComponentMapTemp) {
-        UAirBlueprintLib::RunCommandOnGameThread([ned, only_visible, &retval, element, this]() {
+    TMap<FString, UMeshComponent *> nameToComponentMapTemp = instance_segmentation_annotator_.GetNameToComponentMap();
+    for (auto const &element : nameToComponentMapTemp)
+    {
+        UAirBlueprintLib::RunCommandOnGameThread([ned, only_visible, &retval, element, this]()
+                                                 {
             if (element.Value->HasBegunPlay() && element.Value->IsRenderStateCreated()) {
                 if (!element.Value->IsBeingDestroyed() && IsValid(element.Value)) {
                     if (!only_visible || element.Value->GetVisibleFlag()) {
@@ -812,67 +932,78 @@ std::vector<msr::airlib::Pose> ASimModeBase::GetAllInstanceSegmentationMeshPoses
             }
             else{
                 retval.emplace_back(msr::airlib::Pose::nanPose());
-            }
-        }, true);
+            } }, true);
     }
     return retval;
 }
 
-bool ASimModeBase::SetMeshInstanceSegmentationID(const std::string& mesh_name, int object_id, bool is_name_regex, bool update_annotation) {
-	if (is_name_regex) {
-		std::regex name_regex;
-		name_regex.assign(mesh_name, std::regex_constants::icase);
-		int changes = 0;
-		for (auto It = instance_segmentation_annotator_.GetNameToComponentMap().CreateConstIterator(); It; ++It)
-		{
-			if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
-				bool success;
-				FString key = It.Key();
-				UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success]() {
-					success = instance_segmentation_annotator_.SetComponentRGBColorByIndex(key, object_id);
-				}, true);
-				changes++;
-			}
-		}
-        if(update_annotation && changes > 0)updateInstanceSegmentationAnnotation();
+bool ASimModeBase::SetMeshInstanceSegmentationID(const std::string &mesh_name, int object_id, bool is_name_regex, bool update_annotation)
+{
+    if (is_name_regex)
+    {
+        std::regex name_regex;
+        name_regex.assign(mesh_name, std::regex_constants::icase);
+        int changes = 0;
+        for (auto It = instance_segmentation_annotator_.GetNameToComponentMap().CreateConstIterator(); It; ++It)
+        {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
+                bool success;
+                FString key = It.Key();
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success]()
+                                                         { success = instance_segmentation_annotator_.SetComponentRGBColorByIndex(key, object_id); }, true);
+                changes++;
+            }
+        }
+        if (update_annotation && changes > 0)
+            updateInstanceSegmentationAnnotation();
         return changes > 0;
-	}
-	else if (instance_segmentation_annotator_.GetNameToComponentMap().Contains(mesh_name.c_str())) {
-		bool success;
-		FString key = mesh_name.c_str();
-		UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success]() {
-			success = instance_segmentation_annotator_.SetComponentRGBColorByIndex(key, object_id);
-		}, true);
-        if(update_annotation)updateInstanceSegmentationAnnotation();
+    }
+    else if (instance_segmentation_annotator_.GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
+        bool success;
+        FString key = mesh_name.c_str();
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success]()
+                                                 { success = instance_segmentation_annotator_.SetComponentRGBColorByIndex(key, object_id); }, true);
+        if (update_annotation)
+            updateInstanceSegmentationAnnotation();
         return success;
-	}
-	else {
-		return false;
-	}
+    }
+    else
+    {
+        return false;
+    }
 }
 
-int ASimModeBase::GetMeshInstanceSegmentationID(const std::string& mesh_name) {
-	return instance_segmentation_annotator_.GetComponentIndex(mesh_name.c_str());
+int ASimModeBase::GetMeshInstanceSegmentationID(const std::string &mesh_name)
+{
+    return instance_segmentation_annotator_.GetComponentIndex(mesh_name.c_str());
 }
 
-std::vector<std::string> ASimModeBase::GetAllAnnotationMeshIDs(const std::string& annotation_name) {
+std::vector<std::string> ASimModeBase::GetAllAnnotationMeshIDs(const std::string &annotation_name)
+{
     std::vector<msr::airlib::string> retval;
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return retval;
     }
     return annotators_[FString(annotation_name.c_str())].GetAllComponentNames();
 }
 
-std::vector<msr::airlib::Pose> ASimModeBase::GetAllAnnotationMeshPoses(const std::string& annotation_name, bool ned, bool only_visible) {
+std::vector<msr::airlib::Pose> ASimModeBase::GetAllAnnotationMeshPoses(const std::string &annotation_name, bool ned, bool only_visible)
+{
     std::vector<msr::airlib::Pose> retval;
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return retval;
     }
-    TMap<FString, UMeshComponent*> nameToComponentMapTemp = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap();
-    for (auto const& element : nameToComponentMapTemp) {
-        UAirBlueprintLib::RunCommandOnGameThread([ned, only_visible, &retval, element, this]() {
+    TMap<FString, UMeshComponent *> nameToComponentMapTemp = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap();
+    for (auto const &element : nameToComponentMapTemp)
+    {
+        UAirBlueprintLib::RunCommandOnGameThread([ned, only_visible, &retval, element, this]()
+                                                 {
             if (element.Value->HasBegunPlay() && element.Value->IsRenderStateCreated()) {
                 if (!element.Value->IsBeingDestroyed() && IsValid(element.Value)) {
                     if (!only_visible || element.Value->GetVisibleFlag()) {
@@ -893,156 +1024,179 @@ std::vector<msr::airlib::Pose> ASimModeBase::GetAllAnnotationMeshPoses(const std
             }
             else {
                 retval.emplace_back(msr::airlib::Pose::nanPose());
-            }
-            }, true);
+            } }, true);
     }
     return retval;
 }
 
-bool ASimModeBase::SetMeshRGBAnnotationID(const std::string& annotation_name, const std::string& mesh_name, int object_id, bool is_name_regex, bool update_annotation) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+bool ASimModeBase::SetMeshRGBAnnotationID(const std::string &annotation_name, const std::string &mesh_name, int object_id, bool is_name_regex, bool update_annotation)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *FString(annotation_name.c_str()));
         return false;
     }
 
-    if (is_name_regex) {
+    if (is_name_regex)
+    {
         std::regex name_regex;
         name_regex.assign(mesh_name, std::regex_constants::icase);
         int changes = 0;
         for (auto It = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().CreateConstIterator(); It; ++It)
         {
-            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
                 bool success;
                 FString key = It.Key();
-                UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success, annotation_name]() {
-                    success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByIndex(key, object_id);
-                    }, true);
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success, annotation_name]()
+                                                         { success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByIndex(key, object_id); }, true);
                 changes++;
             }
         }
-        if (update_annotation && changes > 0)updateAnnotation(FString(annotation_name.c_str()));
+        if (update_annotation && changes > 0)
+            updateAnnotation(FString(annotation_name.c_str()));
         return changes > 0;
     }
-    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str())) {
+    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
         bool success;
         FString key = mesh_name.c_str();
-        UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success, annotation_name]() {
-            success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByIndex(key, object_id);
-            }, true);
-        if (update_annotation)updateAnnotation(FString(annotation_name.c_str()));
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, object_id, &success, annotation_name]()
+                                                 { success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByIndex(key, object_id); }, true);
+        if (update_annotation)
+            updateAnnotation(FString(annotation_name.c_str()));
         return success;
     }
-    else {
+    else
+    {
         return false;
     }
 }
 
-bool ASimModeBase::SetMeshRGBAnnotationColor(const std::string& annotation_name, const std::string& mesh_name, int r, int g, int b, bool is_name_regex, bool update_annotation) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+bool ASimModeBase::SetMeshRGBAnnotationColor(const std::string &annotation_name, const std::string &mesh_name, int r, int g, int b, bool is_name_regex, bool update_annotation)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *FString(annotation_name.c_str()));
         return false;
     }
-    if (!annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (!annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *FString(annotation_name.c_str()));
         return false;
     }
 
     FColor color = FColor(r, g, b);
 
-    if (is_name_regex) {
+    if (is_name_regex)
+    {
         std::regex name_regex;
         name_regex.assign(mesh_name, std::regex_constants::icase);
         int changes = 0;
         for (auto It = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().CreateConstIterator(); It; ++It)
         {
-            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
                 bool success;
                 FString key = It.Key();
-                UAirBlueprintLib::RunCommandOnGameThread([this, key, color, &success, annotation_name]() {
-                    success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByColor(key, color);
-                    }, true);
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, color, &success, annotation_name]()
+                                                         { success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByColor(key, color); }, true);
                 changes++;
             }
         }
-        if (update_annotation && changes > 0)updateAnnotation(FString(annotation_name.c_str()));
+        if (update_annotation && changes > 0)
+            updateAnnotation(FString(annotation_name.c_str()));
         return changes > 0;
     }
-    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str())) {
+    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
         bool success;
         FString key = mesh_name.c_str();
-        UAirBlueprintLib::RunCommandOnGameThread([this, key, color, &success, annotation_name]() {
-            success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByColor(key, color);
-            }, true);
-        if (update_annotation)updateAnnotation(FString(annotation_name.c_str()));
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, color, &success, annotation_name]()
+                                                 { success = annotators_[FString(annotation_name.c_str())].SetComponentRGBColorByColor(key, color); }, true);
+        if (update_annotation)
+            updateAnnotation(FString(annotation_name.c_str()));
         return success;
     }
-    else {
+    else
+    {
         return false;
     }
-
 }
 
-bool ASimModeBase::SetMeshGreyscaleAnnotationValue(const std::string& annotation_name, const std::string& mesh_name, float greyscale_value, bool is_name_regex, bool update_annotation) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+bool ASimModeBase::SetMeshGreyscaleAnnotationValue(const std::string &annotation_name, const std::string &mesh_name, float greyscale_value, bool is_name_regex, bool update_annotation)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *FString(annotation_name.c_str()));
         return false;
     }
-    
-    if (is_name_regex) {
+
+    if (is_name_regex)
+    {
         std::regex name_regex;
         name_regex.assign(mesh_name, std::regex_constants::icase);
         int changes = 0;
         for (auto It = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().CreateConstIterator(); It; ++It)
         {
-            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
                 bool success;
                 FString key = It.Key();
-                UAirBlueprintLib::RunCommandOnGameThread([this, key, greyscale_value, &success, annotation_name]() {
-                    success = annotators_[FString(annotation_name.c_str())].SetComponentGreyScaleColorByValue(key, greyscale_value);
-                    }, true);
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, greyscale_value, &success, annotation_name]()
+                                                         { success = annotators_[FString(annotation_name.c_str())].SetComponentGreyScaleColorByValue(key, greyscale_value); }, true);
                 changes++;
             }
         }
-        if (update_annotation && changes > 0)updateAnnotation(FString(annotation_name.c_str()));
+        if (update_annotation && changes > 0)
+            updateAnnotation(FString(annotation_name.c_str()));
         return changes > 0;
     }
-    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str())) {
+    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
         bool success;
         FString key = mesh_name.c_str();
-        UAirBlueprintLib::RunCommandOnGameThread([this, key, greyscale_value, &success, annotation_name]() {
-            success = annotators_[FString(annotation_name.c_str())].SetComponentGreyScaleColorByValue(key, greyscale_value);
-            }, true);
-        if (update_annotation)updateAnnotation(FString(annotation_name.c_str()));
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, greyscale_value, &success, annotation_name]()
+                                                 { success = annotators_[FString(annotation_name.c_str())].SetComponentGreyScaleColorByValue(key, greyscale_value); }, true);
+        if (update_annotation)
+            updateAnnotation(FString(annotation_name.c_str()));
         return success;
     }
-    else {
+    else
+    {
         return false;
     }
-
 }
 
-float ASimModeBase::GetMeshGreyscaleAnnotationValue(const std::string& annotation_name, const std::string& mesh_name) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+float ASimModeBase::GetMeshGreyscaleAnnotationValue(const std::string &annotation_name, const std::string &mesh_name)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return 0;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Greyscale) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Greyscale)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the greyscale type."), *FString(annotation_name.c_str()));
         return 0;
     }
@@ -1050,106 +1204,124 @@ float ASimModeBase::GetMeshGreyscaleAnnotationValue(const std::string& annotatio
     return greyscale_value;
 }
 
-bool ASimModeBase::SetMeshTextureAnnotationPath(const std::string& annotation_name, const std::string& mesh_name, const std::string& texture_path, bool is_name_regex, bool update_annotation) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+bool ASimModeBase::SetMeshTextureAnnotationPath(const std::string &annotation_name, const std::string &mesh_name, const std::string &texture_path, bool is_name_regex, bool update_annotation)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *FString(annotation_name.c_str()));
         return false;
     }
-    if (!annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (!annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *FString(annotation_name.c_str()));
         return false;
     }
     FString texture_path_fstring = FString(texture_path.c_str());
 
-    if (is_name_regex) {
+    if (is_name_regex)
+    {
         std::regex name_regex;
         name_regex.assign(mesh_name, std::regex_constants::icase);
         int changes = 0;
         for (auto It = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().CreateConstIterator(); It; ++It)
         {
-            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
                 bool success;
                 FString key = It.Key();
-                UAirBlueprintLib::RunCommandOnGameThread([this, key, texture_path_fstring, &success, annotation_name]() {
-                    success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByDirectPath(key, texture_path_fstring);
-                    }, true);
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, texture_path_fstring, &success, annotation_name]()
+                                                         { success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByDirectPath(key, texture_path_fstring); }, true);
                 changes++;
             }
         }
-        if (update_annotation && changes > 0)updateAnnotation(FString(annotation_name.c_str()));
+        if (update_annotation && changes > 0)
+            updateAnnotation(FString(annotation_name.c_str()));
         return changes > 0;
     }
-    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str())) {
+    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
         bool success;
         FString key = mesh_name.c_str();
-        UAirBlueprintLib::RunCommandOnGameThread([this, key, texture_path_fstring, &success, annotation_name]() {
-            success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByDirectPath(key, texture_path_fstring);
-            }, true);
-        if (update_annotation)updateAnnotation(FString(annotation_name.c_str()));
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, texture_path_fstring, &success, annotation_name]()
+                                                 { success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByDirectPath(key, texture_path_fstring); }, true);
+        if (update_annotation)
+            updateAnnotation(FString(annotation_name.c_str()));
         return success;
     }
-    else {
+    else
+    {
         return false;
     }
-
 }
 
-bool ASimModeBase::EnableMeshTextureAnnotationByPath(const std::string& annotation_name, const std::string& mesh_name, bool is_name_regex, bool update_annotation) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+bool ASimModeBase::EnableMeshTextureAnnotationByPath(const std::string &annotation_name, const std::string &mesh_name, bool is_name_regex, bool update_annotation)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *FString(annotation_name.c_str()));
         return false;
     }
-    if (annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to relative path mode."), *FString(annotation_name.c_str()));
         return false;
     }
 
-    if (is_name_regex) {
+    if (is_name_regex)
+    {
         std::regex name_regex;
         name_regex.assign(mesh_name, std::regex_constants::icase);
         int changes = 0;
         for (auto It = annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().CreateConstIterator(); It; ++It)
         {
-            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex)) {
+            if (std::regex_match(TCHAR_TO_UTF8(*It.Key()), name_regex))
+            {
                 bool success;
                 FString key = It.Key();
-                UAirBlueprintLib::RunCommandOnGameThread([this, key, &success, annotation_name]() {
-                    success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByRelativePath(key);
-                    }, true);
+                UAirBlueprintLib::RunCommandOnGameThread([this, key, &success, annotation_name]()
+                                                         { success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByRelativePath(key); }, true);
                 changes++;
             }
         }
-        if (update_annotation && changes > 0)updateAnnotation(FString(annotation_name.c_str()));
+        if (update_annotation && changes > 0)
+            updateAnnotation(FString(annotation_name.c_str()));
         return changes > 0;
     }
-    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str())) {
+    else if (annotators_[FString(annotation_name.c_str())].GetNameToComponentMap().Contains(mesh_name.c_str()))
+    {
         bool success;
         FString key = mesh_name.c_str();
-        UAirBlueprintLib::RunCommandOnGameThread([this, key, &success, annotation_name]() {
-            success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByRelativePath(key);
-            }, true);
-        if (update_annotation)updateAnnotation(FString(annotation_name.c_str()));
+        UAirBlueprintLib::RunCommandOnGameThread([this, key, &success, annotation_name]()
+                                                 { success = annotators_[FString(annotation_name.c_str())].SetComponentTextureByRelativePath(key); }, true);
+        if (update_annotation)
+            updateAnnotation(FString(annotation_name.c_str()));
         return success;
     }
-    else {
+    else
+    {
         return false;
     }
 }
 
-std::string ASimModeBase::GetMeshTextureAnnotationPath(const std::string& annotation_name, const std::string& mesh_name) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+std::string ASimModeBase::GetMeshTextureAnnotationPath(const std::string &annotation_name, const std::string &mesh_name)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return "";
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::Texture)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the texture type."), *FString(annotation_name.c_str()));
         return "";
     }
@@ -1157,32 +1329,40 @@ std::string ASimModeBase::GetMeshTextureAnnotationPath(const std::string& annota
     return TCHAR_TO_UTF8(*texture_path);
 }
 
-int ASimModeBase::GetMeshRGBAnnotationID(const std::string& annotation_name, const std::string& mesh_name) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+int ASimModeBase::GetMeshRGBAnnotationID(const std::string &annotation_name, const std::string &mesh_name)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return -1;
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *FString(annotation_name.c_str()));
         return -1;
     }
-    if (annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to index mode."), *FString(annotation_name.c_str()));
         return -1;
     }
     return annotators_[FString(annotation_name.c_str())].GetComponentIndex(mesh_name.c_str());
 }
 
-std::string ASimModeBase::GetMeshRGBAnnotationColor(const std::string& annotation_name, const std::string& mesh_name) {
-    if (annotators_.Contains(FString(annotation_name.c_str())) == false) {
+std::string ASimModeBase::GetMeshRGBAnnotationColor(const std::string &annotation_name, const std::string &mesh_name)
+{
+    if (annotators_.Contains(FString(annotation_name.c_str())) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *FString(annotation_name.c_str()), *FString(annotation_name.c_str()));
         return "";
     }
-    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB) {
+    if (annotators_[FString(annotation_name.c_str())].GetType() != FObjectAnnotator::AnnotatorType::RGB)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not of the RGB type."), *FString(annotation_name.c_str()));
         return "";
     }
-    if (!annotators_[FString(annotation_name.c_str())].IsDirect()) {
+    if (!annotators_[FString(annotation_name.c_str())].IsDirect())
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: This annotation layer is not set to direct mode."), *FString(annotation_name.c_str()));
         return "";
     }
@@ -1190,90 +1370,111 @@ std::string ASimModeBase::GetMeshRGBAnnotationColor(const std::string& annotatio
     return TCHAR_TO_UTF8(*color);
 }
 
-bool ASimModeBase::AddNewActorToInstanceSegmentation(AActor* Actor, bool update_annotation){
-   
-	bool success = instance_segmentation_annotator_.AnnotateNewActor(Actor);
-    if(success && update_annotation)updateInstanceSegmentationAnnotation();        
+bool ASimModeBase::AddNewActorToInstanceSegmentation(AActor *Actor, bool update_annotation)
+{
+
+    bool success = instance_segmentation_annotator_.AnnotateNewActor(Actor);
+    if (success && update_annotation)
+        updateInstanceSegmentationAnnotation();
     return success;
 }
 
-bool ASimModeBase::DeleteActorFromInstanceSegmentation(AActor* Actor, bool update_annotation) {
+bool ASimModeBase::DeleteActorFromInstanceSegmentation(AActor *Actor, bool update_annotation)
+{
 
     bool success = instance_segmentation_annotator_.DeleteActor(Actor);
-    if (success && update_annotation)updateInstanceSegmentationAnnotation();
+    if (success && update_annotation)
+        updateInstanceSegmentationAnnotation();
     return success;
 }
 
-void ASimModeBase::ForceUpdateInstanceSegmentation() {
-	instance_segmentation_annotator_.UpdateAnnotationComponents(this->GetWorld());
+void ASimModeBase::ForceUpdateInstanceSegmentation()
+{
+    instance_segmentation_annotator_.UpdateAnnotationComponents(this->GetWorld());
     updateInstanceSegmentationAnnotation();
 }
 
-bool ASimModeBase::DoesAnnotationLayerExist(FString annotation_name) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::DoesAnnotationLayerExist(FString annotation_name)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
     return true;
 }
 
-bool ASimModeBase::AddNewActorToAnnotation(FString annotation_name, AActor* Actor, bool update_annotation) {
-    if (annotators_.Contains(annotation_name) == false) {
+bool ASimModeBase::AddNewActorToAnnotation(FString annotation_name, AActor *Actor, bool update_annotation)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
     bool success = annotators_[annotation_name].AnnotateNewActor(Actor);
-    if (success && update_annotation)updateAnnotation(annotation_name);
+    if (success && update_annotation)
+        updateAnnotation(annotation_name);
     return success;
 }
 
-bool ASimModeBase::DeleteActorFromAnnotation(FString annotation_name, AActor* Actor, bool update_annotation) {
+bool ASimModeBase::DeleteActorFromAnnotation(FString annotation_name, AActor *Actor, bool update_annotation)
+{
 
-    if (annotators_.Contains(annotation_name) == false) {
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
         return false;
     }
     bool success = annotators_[annotation_name].DeleteActor(Actor);
-    if (success && update_annotation)updateAnnotation(annotation_name);
+    if (success && update_annotation)
+        updateAnnotation(annotation_name);
     return success;
 }
 
-void ASimModeBase::ForceUpdateAnnotation(FString annotation_name) {
-    if (annotators_.Contains(annotation_name) == false) {
+void ASimModeBase::ForceUpdateAnnotation(FString annotation_name)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
-    }else{
+    }
+    else
+    {
         annotators_[annotation_name].UpdateAnnotationComponents(this->GetWorld());
         updateAnnotation(annotation_name);
     }
 }
 
-void ASimModeBase::updateInstanceSegmentationAnnotation() {
+void ASimModeBase::updateInstanceSegmentationAnnotation()
+{
     TArray<TWeakObjectPtr<UPrimitiveComponent>> current_segmentation_components = instance_segmentation_annotator_.GetAnnotationComponents();
 
-    TArray<AActor*> cameras_found;
-    UAirBlueprintLib::RunCommandOnGameThread([this, &cameras_found]() {
-        UGameplayStatics::GetAllActorsOfClass(this, APIPCamera::StaticClass(), cameras_found);
-        }, true);
-    if (cameras_found.Num() >= 0) {
-        for (auto camera_actor : cameras_found) {
-            APIPCamera* cur_camera = static_cast<APIPCamera*>(camera_actor);
+    TArray<AActor *> cameras_found;
+    UAirBlueprintLib::RunCommandOnGameThread([this, &cameras_found]()
+                                             { UGameplayStatics::GetAllActorsOfClass(this, APIPCamera::StaticClass(), cameras_found); }, true);
+    if (cameras_found.Num() >= 0)
+    {
+        for (auto camera_actor : cameras_found)
+        {
+            APIPCamera *cur_camera = static_cast<APIPCamera *>(camera_actor);
             cur_camera->updateInstanceSegmentationAnnotation(current_segmentation_components);
         }
     }
-    TArray<AActor*> lidar_cameras_found;
-    UAirBlueprintLib::RunCommandOnGameThread([this, &lidar_cameras_found]() {
-        UGameplayStatics::GetAllActorsOfClass(this, ALidarCamera::StaticClass(), lidar_cameras_found);
-        }, true);
-    if (cameras_found.Num() >= 0) {
-        for (auto lidar_camera_actor : lidar_cameras_found) {
-            ALidarCamera* cur_lidar_camera = static_cast<ALidarCamera*>(lidar_camera_actor);
-            if(cur_lidar_camera->instance_segmentation_ && cur_lidar_camera->generate_groundtruth_)
+    TArray<AActor *> lidar_cameras_found;
+    UAirBlueprintLib::RunCommandOnGameThread([this, &lidar_cameras_found]()
+                                             { UGameplayStatics::GetAllActorsOfClass(this, ALidarCamera::StaticClass(), lidar_cameras_found); }, true);
+    if (cameras_found.Num() >= 0)
+    {
+        for (auto lidar_camera_actor : lidar_cameras_found)
+        {
+            ALidarCamera *cur_lidar_camera = static_cast<ALidarCamera *>(lidar_camera_actor);
+            if (cur_lidar_camera->instance_segmentation_ && cur_lidar_camera->generate_groundtruth_)
                 cur_lidar_camera->updateInstanceSegmentationAnnotation(current_segmentation_components);
         }
     }
-    if (CameraDirector != nullptr) {
-        if(CameraDirector->getFpvCamera() != nullptr)
-			CameraDirector->getFpvCamera()->updateInstanceSegmentationAnnotation(current_segmentation_components, true);
+    if (CameraDirector != nullptr)
+    {
+        if (CameraDirector->getFpvCamera() != nullptr)
+            CameraDirector->getFpvCamera()->updateInstanceSegmentationAnnotation(current_segmentation_components, true);
         if (CameraDirector->getExternalCamera() != nullptr)
             CameraDirector->getExternalCamera()->updateInstanceSegmentationAnnotation(current_segmentation_components, true);
         if (CameraDirector->getBackupCamera() != nullptr)
@@ -1283,36 +1484,42 @@ void ASimModeBase::updateInstanceSegmentationAnnotation() {
     }
 }
 
-void ASimModeBase::updateAnnotation(FString annotation_name) {
-    if (annotators_.Contains(annotation_name) == false) {
+void ASimModeBase::updateAnnotation(FString annotation_name)
+{
+    if (annotators_.Contains(annotation_name) == false)
+    {
         UE_LOG(LogTemp, Log, TEXT("AirSim Annotation [%s]: Could not find annotation layer %s"), *annotation_name, *annotation_name);
     }
-    else {
+    else
+    {
         TArray<TWeakObjectPtr<UPrimitiveComponent>> current_annotation_components = annotators_[annotation_name].GetAnnotationComponents();
-        TArray<AActor*> cameras_found;
-        UAirBlueprintLib::RunCommandOnGameThread([this, &cameras_found]() {
-            UGameplayStatics::GetAllActorsOfClass(this, APIPCamera::StaticClass(), cameras_found);
-            }, true);
+        TArray<AActor *> cameras_found;
+        UAirBlueprintLib::RunCommandOnGameThread([this, &cameras_found]()
+                                                 { UGameplayStatics::GetAllActorsOfClass(this, APIPCamera::StaticClass(), cameras_found); }, true);
         UAirBlueprintLib::FindAllActor<APIPCamera>(this, cameras_found);
-        if (cameras_found.Num() >= 0) {
-            for (auto camera_actor : cameras_found) {
-                APIPCamera* cur_camera = static_cast<APIPCamera*>(camera_actor);
+        if (cameras_found.Num() >= 0)
+        {
+            for (auto camera_actor : cameras_found)
+            {
+                APIPCamera *cur_camera = static_cast<APIPCamera *>(camera_actor);
                 cur_camera->updateAnnotation(current_annotation_components, annotation_name);
             }
         }
-        TArray<AActor*> lidar_cameras_found;
-        UAirBlueprintLib::RunCommandOnGameThread([this, &lidar_cameras_found]() {
-            UGameplayStatics::GetAllActorsOfClass(this, ALidarCamera::StaticClass(), lidar_cameras_found);
-            }, true);
+        TArray<AActor *> lidar_cameras_found;
+        UAirBlueprintLib::RunCommandOnGameThread([this, &lidar_cameras_found]()
+                                                 { UGameplayStatics::GetAllActorsOfClass(this, ALidarCamera::StaticClass(), lidar_cameras_found); }, true);
         UAirBlueprintLib::FindAllActor<ALidarCamera>(this, lidar_cameras_found);
-        if (cameras_found.Num() >= 0) {
-            for (auto lidar_camera_actor : lidar_cameras_found) {
-                ALidarCamera* cur_lidar_camera = static_cast<ALidarCamera*>(lidar_camera_actor);
+        if (cameras_found.Num() >= 0)
+        {
+            for (auto lidar_camera_actor : lidar_cameras_found)
+            {
+                ALidarCamera *cur_lidar_camera = static_cast<ALidarCamera *>(lidar_camera_actor);
                 if (!cur_lidar_camera->instance_segmentation_ && cur_lidar_camera->generate_groundtruth_ && cur_lidar_camera->annotation_name_ == annotation_name)
                     cur_lidar_camera->updateAnnotation(current_annotation_components);
             }
         }
-        if (CameraDirector != nullptr) {
+        if (CameraDirector != nullptr)
+        {
             if (CameraDirector->getFpvCamera() != nullptr)
                 CameraDirector->getFpvCamera()->updateInstanceSegmentationAnnotation(current_annotation_components, true);
             if (CameraDirector->getExternalCamera() != nullptr)
@@ -1325,12 +1532,15 @@ void ASimModeBase::updateAnnotation(FString annotation_name) {
     }
 }
 
-void ASimModeBase::AddAnnotatorCamera(FString name, FObjectAnnotator::AnnotatorType type, float max_view_distance) {
-    TArray<AActor*> cameras_found;
+void ASimModeBase::AddAnnotatorCamera(FString name, FObjectAnnotator::AnnotatorType type, float max_view_distance)
+{
+    TArray<AActor *> cameras_found;
     UAirBlueprintLib::FindAllActor<APIPCamera>(this, cameras_found);
-    if (cameras_found.Num() >= 0) {
-        for (auto camera_actor : cameras_found) {
-            APIPCamera* cur_camera = static_cast<APIPCamera*>(camera_actor);
+    if (cameras_found.Num() >= 0)
+    {
+        for (auto camera_actor : cameras_found)
+        {
+            APIPCamera *cur_camera = static_cast<APIPCamera *>(camera_actor);
             cur_camera->addAnnotationCamera(name, type, max_view_distance);
         }
     }
@@ -1342,7 +1552,7 @@ void ASimModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
     FRecordingThread::killRecording();
     world_sim_api_.reset();
     api_provider_.reset();
-    api_server_.reset();
+    api_servers_.clear();
     global_ned_transform_.reset();
 
     CameraDirector = nullptr;
@@ -1353,9 +1563,10 @@ void ASimModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
     vehicle_sim_apis_.clear();
 
     instance_segmentation_annotator_.EndPlay();
-    for(auto& annotator : annotators_){
-		annotator.Value.EndPlay();
-	}
+    for (auto &annotator : annotators_)
+    {
+        annotator.Value.EndPlay();
+    }
     annotators_.Empty();
 
     Super::EndPlay(EndPlayReason);
@@ -1366,7 +1577,7 @@ void ASimModeBase::initializeTimeOfDay()
     sky_sphere_ = nullptr;
     sun_ = nullptr;
 
-    TArray<AActor*> sky_spheres;
+    TArray<AActor *> sky_spheres;
     UGameplayStatics::GetAllActorsOfClass(this->GetWorld(), sky_sphere_class_, sky_spheres);
 
     if (sky_spheres.Num() > 1)
@@ -1374,37 +1585,41 @@ void ASimModeBase::initializeTimeOfDay()
                                      TEXT("TimeOfDay settings would be applied to first one."),
                                      LogDebugLevel::Failure);
 
-    if (sky_spheres.Num() >= 1) {
+    if (sky_spheres.Num() >= 1)
+    {
         sky_sphere_ = sky_spheres[0];
         static const FName sun_prop_name(TEXT("Directional light actor"));
-        auto* p = sky_sphere_class_->FindPropertyByName(sun_prop_name);
+        auto *p = sky_sphere_class_->FindPropertyByName(sun_prop_name);
 
 #if ((ENGINE_MAJOR_VERSION > 4) || (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 27))
-        FObjectProperty* sun_prop = CastFieldChecked<FObjectProperty>(p);
+        FObjectProperty *sun_prop = CastFieldChecked<FObjectProperty>(p);
 #else
-        FObjectProperty* sun_prop = Cast<FObjectProperty>(p);
+        FObjectProperty *sun_prop = Cast<FObjectProperty>(p);
 #endif
 
-        UObject* sun_obj = sun_prop->GetObjectPropertyValue_InContainer(sky_sphere_);
+        UObject *sun_obj = sun_prop->GetObjectPropertyValue_InContainer(sky_sphere_);
         sun_ = Cast<ADirectionalLight>(sun_obj);
         if (sun_)
             default_sun_rotation_ = sun_->GetActorRotation();
     }
 }
 
-void ASimModeBase::setTimeOfDay(bool is_enabled, const std::string& start_datetime, bool is_start_datetime_dst,
+void ASimModeBase::setTimeOfDay(bool is_enabled, const std::string &start_datetime, bool is_start_datetime_dst,
                                 float celestial_clock_speed, float update_interval_secs, bool move_sun)
 {
     bool enabled_currently = tod_enabled_;
 
-    if (is_enabled) {
+    if (is_enabled)
+    {
 
-        if (!sun_) {
+        if (!sun_)
+        {
             UAirBlueprintLib::LogMessage(TEXT("BP_Sky_Sphere was not found. "),
                                          TEXT("TimeOfDay settings would be ignored."),
                                          LogDebugLevel::Failure);
         }
-        else {
+        else
+        {
             sun_->GetRootComponent()->Mobility = EComponentMobility::Movable;
 
             // this is a bit odd but given how advanceTimeOfDay() works currently,
@@ -1418,9 +1633,11 @@ void ASimModeBase::setTimeOfDay(bool is_enabled, const std::string& start_dateti
                 tod_start_time_ = std::time(nullptr) * 1E9;
         }
     }
-    else if (enabled_currently) {
+    else if (enabled_currently)
+    {
         // Going from enabled to disabled
-        if (sun_) {
+        if (sun_)
+        {
             setSunRotation(default_sun_rotation_);
             UAirBlueprintLib::LogMessageString("DateTime: ", Utils::to_string(ClockFactory::get()->nowNanos() / 1E9), LogDebugLevel::Informational);
         }
@@ -1446,45 +1663,45 @@ void ASimModeBase::pause(bool is_paused)
 
 void ASimModeBase::continueForTime(double seconds)
 {
-    //should be overridden by derived class
+    // should be overridden by derived class
     unused(seconds);
     throw std::domain_error("continueForTime is not implemented by SimMode");
 }
 
 void ASimModeBase::continueForFrames(uint32_t frames)
 {
-    //should be overriden by derived class
+    // should be overriden by derived class
     unused(frames);
     throw std::domain_error("continueForFrames is not implemented by SimMode");
 }
 
-void ASimModeBase::setWind(const msr::airlib::Vector3r& wind) const
+void ASimModeBase::setWind(const msr::airlib::Vector3r &wind) const
 {
     // should be overridden by derived class
     unused(wind);
     throw std::domain_error("setWind not implemented by SimMode");
 }
 
-void ASimModeBase::setExtForce(const msr::airlib::Vector3r& ext_force) const
+void ASimModeBase::setExtForce(const msr::airlib::Vector3r &ext_force) const
 {
     // should be overridden by derived class
     unused(ext_force);
     throw std::domain_error("setExtForce not implemented by SimMode");
 }
 
-std::unique_ptr<msr::airlib::ApiServerBase> ASimModeBase::createApiServer() const
+std::vector<std::unique_ptr<msr::airlib::ApiServerBase>> ASimModeBase::createApiServer() const
 {
-    //this will be the case when compilation with RPCLIB is disabled or simmode doesn't support APIs
-    return nullptr;
+    // this will be the case when compilation with RPCLIB is disabled or simmode doesn't support APIs
+    return {};
 }
 
 void ASimModeBase::setupClockSpeed()
 {
-    //default setup - this should be overridden in derived modes as needed
+    // default setup - this should be overridden in derived modes as needed
 
     float clock_speed = getSettings().clock_speed;
 
-    //setup clock in ClockFactory
+    // setup clock in ClockFactory
     std::string clock_type = getSettings().clock_type;
 
     if (clock_type == "ScalableClock")
@@ -1512,7 +1729,7 @@ void ASimModeBase::Tick(float DeltaSeconds)
 
     updateDebugReport(debug_reporter_);
 
-    //drawLidarDebugPoints();
+    // drawLidarDebugPoints();
 
     drawDistanceSensorDebugPoints();
 
@@ -1522,7 +1739,8 @@ void ASimModeBase::Tick(float DeltaSeconds)
 void ASimModeBase::showClockStats()
 {
     float clock_speed = getSettings().clock_speed;
-    if (clock_speed != 1) {
+    if (clock_speed != 1)
+    {
         UAirBlueprintLib::LogMessageString("ClockSpeed config, actual: ",
                                            Utils::stringf("%f, %f", clock_speed, ClockFactory::get()->getTrueScaleWrtWallClock()),
                                            LogDebugLevel::Informational);
@@ -1531,11 +1749,13 @@ void ASimModeBase::showClockStats()
 
 void ASimModeBase::advanceTimeOfDay()
 {
-    const auto& settings = getSettings();
+    const auto &settings = getSettings();
 
-    if (tod_enabled_ && sky_sphere_ && sun_ && tod_move_sun_) {
+    if (tod_enabled_ && sky_sphere_ && sun_ && tod_move_sun_)
+    {
         auto secs = ClockFactory::get()->elapsedSince(tod_last_update_);
-        if (secs > tod_update_interval_secs_) {
+        if (secs > tod_update_interval_secs_)
+        {
             tod_last_update_ = ClockFactory::get()->nowNanos();
 
             auto interval = ClockFactory::get()->elapsedSince(tod_sim_clock_start_) * tod_celestial_clock_speed_;
@@ -1552,25 +1772,26 @@ void ASimModeBase::advanceTimeOfDay()
 
 void ASimModeBase::setSunRotation(FRotator rotation)
 {
-    if (sun_ && sky_sphere_) {
-        UAirBlueprintLib::RunCommandOnGameThread([this, rotation]() {
+    if (sun_ && sky_sphere_)
+    {
+        UAirBlueprintLib::RunCommandOnGameThread([this, rotation]()
+                                                 {
             sun_->SetActorRotation(rotation);
 
             FOutputDeviceNull ar;
-            sky_sphere_->CallFunctionByNameWithArguments(TEXT("UpdateSunDirection"), ar, NULL, true);
-        },
+            sky_sphere_->CallFunctionByNameWithArguments(TEXT("UpdateSunDirection"), ar, NULL, true); },
                                                  true /*wait*/);
     }
 }
 
 void ASimModeBase::reset()
 {
-    //default implementation
-    UAirBlueprintLib::RunCommandOnGameThread([this]() {
+    // default implementation
+    UAirBlueprintLib::RunCommandOnGameThread([this]()
+                                             {
         for (auto& api : getApiProvider()->getVehicleSimApis()) {
             api->reset();
-        }
-    },
+        } },
                                              true);
 }
 
@@ -1591,17 +1812,18 @@ ECameraDirectorMode ASimModeBase::getInitialViewMode() const
     return Utils::toEnum<ECameraDirectorMode>(getSettings().initial_view_mode);
 }
 
-const msr::airlib::AirSimSettings& ASimModeBase::getSettings() const
+const msr::airlib::AirSimSettings &ASimModeBase::getSettings() const
 {
     return AirSimSettings::singleton();
 }
 
-void ASimModeBase::initializeCameraDirector(const FTransform& camera_transform, float follow_distance)
+void ASimModeBase::initializeCameraDirector(const FTransform &camera_transform, float follow_distance)
 {
-    TArray<AActor*> camera_dirs;
+    TArray<AActor *> camera_dirs;
     UAirBlueprintLib::FindAllActor<ACameraDirector>(this, camera_dirs);
-    if (camera_dirs.Num() == 0) {
-        //create director
+    if (camera_dirs.Num() == 0)
+    {
+        // create director
         FActorSpawnParameters camera_spawn_params;
         camera_spawn_params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
         camera_spawn_params.Name = "CameraDirector";
@@ -1610,14 +1832,15 @@ void ASimModeBase::initializeCameraDirector(const FTransform& camera_transform, 
                                                                        camera_spawn_params);
         CameraDirector->setFollowDistance(follow_distance);
         CameraDirector->setCameraRotationLagEnabled(false);
-        //create external camera required for the director
+        // create external camera required for the director
         camera_spawn_params.Name = "ExternalCamera";
         CameraDirector->ExternalCamera = this->GetWorld()->SpawnActor<APIPCamera>(external_camera_class_,
                                                                                   camera_transform,
                                                                                   camera_spawn_params);
     }
-    else {
-        CameraDirector = static_cast<ACameraDirector*>(camera_dirs[0]);
+    else
+    {
+        CameraDirector = static_cast<ACameraDirector *>(camera_dirs[0]);
     }
 }
 
@@ -1648,38 +1871,51 @@ bool ASimModeBase::isRecording() const
 
 void ASimModeBase::toggleTraceAll()
 {
-    for (auto sim_api : getApiProvider()->getVehicleSimApis()) {
-        auto* pawn_sim_api = static_cast<PawnSimApi*>(sim_api);
+    for (auto sim_api : getApiProvider()->getVehicleSimApis())
+    {
+        auto *pawn_sim_api = static_cast<PawnSimApi *>(sim_api);
         pawn_sim_api->toggleTrace();
     }
 }
 
-const APIPCamera* ASimModeBase::getCamera(const msr::airlib::CameraDetails& camera_details) const
+const APIPCamera *ASimModeBase::getCamera(const msr::airlib::CameraDetails &camera_details) const
 {
     return getVehicleSimApi(camera_details.vehicle_name)->getCamera(camera_details.camera_name);
 }
 
-const UnrealImageCapture* ASimModeBase::getImageCapture(const std::string& vehicle_name) const
+const UnrealImageCapture *ASimModeBase::getImageCapture(const std::string &vehicle_name) const
 {
     return getVehicleSimApi(vehicle_name)->getImageCapture();
 }
 
-//API server start/stop
+// API server start/stop
 void ASimModeBase::startApiServer()
 {
-    if (getSettings().enable_rpc) {
+    if (getSettings().enable_rpc)
+    {
 
 #ifdef AIRLIB_NO_RPC
-        api_server_.reset();
-#else
-        api_server_ = createApiServer();
-#endif
-
-        try {
-            api_server_->start(false, spawned_actors_.Num() + 4);
+        if (!api_servers_.empty())
+        {
+            for (auto &api_server : api_servers_)
+            {
+                api_server->stop();
+            }
+            api_servers_.clear();
         }
-        catch (std::exception& ex) {
-            UAirBlueprintLib::LogMessageString("Cannot start RpcLib Server", ex.what(), LogDebugLevel::Failure);
+#else
+        api_servers_ = createApiServer();
+#endif
+        for (auto &api_server : api_servers_)
+        {
+            try
+            {
+                api_server->start(false, spawned_actors_.Num() + 4);
+            }
+            catch (std::exception &ex)
+            {
+                UAirBlueprintLib::LogMessageString("Cannot start RpcLib Server", ex.what(), LogDebugLevel::Failure);
+            }
         }
     }
     else
@@ -1687,27 +1923,33 @@ void ASimModeBase::startApiServer()
 }
 void ASimModeBase::stopApiServer()
 {
-    if (api_server_ != nullptr) {
-        api_server_->stop();
-        api_server_.reset(nullptr);
+    if (!api_servers_.empty())
+    {
+        for (auto &api_server : api_servers_)
+        {
+            api_server->stop();
+        }
     }
+    api_servers_.clear();
 }
 bool ASimModeBase::isApiServerStarted()
 {
-    return api_server_ != nullptr;
+    return api_servers_.empty();
 }
 
-void ASimModeBase::updateDebugReport(msr::airlib::StateReporterWrapper& debug_reporter)
+void ASimModeBase::updateDebugReport(msr::airlib::StateReporterWrapper &debug_reporter)
 {
     debug_reporter.update();
     debug_reporter.setEnable(EnableReport);
 
-    if (debug_reporter.canReport()) {
+    if (debug_reporter.canReport())
+    {
         debug_reporter.clearReport();
 
-        for (auto& api : getApiProvider()->getVehicleSimApis()) {
-            PawnSimApi* vehicle_sim_api = static_cast<PawnSimApi*>(api);
-            msr::airlib::StateReporter& reporter = *debug_reporter.getReporter();
+        for (auto &api : getApiProvider()->getVehicleSimApis())
+        {
+            PawnSimApi *vehicle_sim_api = static_cast<PawnSimApi *>(api);
+            msr::airlib::StateReporter &reporter = *debug_reporter.getReporter();
             std::string vehicle_name = vehicle_sim_api->getVehicleName();
 
             reporter.writeHeading(std::string("Vehicle: ").append(vehicle_name == "" ? "(default)" : vehicle_name));
@@ -1717,7 +1959,7 @@ void ASimModeBase::updateDebugReport(msr::airlib::StateReporterWrapper& debug_re
     }
 }
 
-FRotator ASimModeBase::toFRotator(const msr::airlib::AirSimSettings::Rotation& rotation, const FRotator& default_val)
+FRotator ASimModeBase::toFRotator(const msr::airlib::AirSimSettings::Rotation &rotation, const FRotator &default_val)
 {
     FRotator frotator = default_val;
     if (!std::isnan(rotation.yaw))
@@ -1730,9 +1972,9 @@ FRotator ASimModeBase::toFRotator(const msr::airlib::AirSimSettings::Rotation& r
     return frotator;
 }
 
-APawn* ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting& vehicle_setting)
+APawn *ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting &vehicle_setting)
 {
-    //get UU origin of global NED frame
+    // get UU origin of global NED frame
     const FTransform uu_origin = getGlobalNedTransform().getGlobalTransform();
 
     // compute initial pose
@@ -1745,7 +1987,7 @@ APawn* ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting& veh
 
     std::string vehicle_name = vehicle_setting.vehicle_name;
 
-    //spawn vehicle pawn
+    // spawn vehicle pawn
     FActorSpawnParameters pawn_spawn_params;
     pawn_spawn_params.Name = FName(vehicle_name.c_str());
     pawn_spawn_params.SpawnCollisionHandlingOverride =
@@ -1753,7 +1995,7 @@ APawn* ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting& veh
 
     auto vehicle_bp_class = UAirBlueprintLib::LoadClass(
         getSettings().pawn_paths.at(getVehiclePawnPathName(vehicle_setting)).pawn_bp);
-    APawn* spawned_pawn = static_cast<APawn*>(this->GetWorld()->SpawnActor(
+    APawn *spawned_pawn = static_cast<APawn *>(this->GetWorld()->SpawnActor(
         vehicle_bp_class, &spawn_position, &spawn_rotation, pawn_spawn_params));
 
     spawned_actors_.Add(spawned_pawn);
@@ -1761,14 +2003,14 @@ APawn* ASimModeBase::createVehiclePawn(const AirSimSettings::VehicleSetting& veh
     return spawned_pawn;
 }
 
-std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleApi(APawn* vehicle_pawn)
+std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleApi(APawn *vehicle_pawn)
 {
     initializeVehiclePawn(vehicle_pawn);
 
-    //create vehicle sim api
-    const auto& ned_transform = getGlobalNedTransform();
-    const auto& pawn_ned_pos = ned_transform.toLocalNed(vehicle_pawn->GetActorLocation());
-    const auto& home_geopoint = msr::airlib::EarthUtils::nedToGeodetic(pawn_ned_pos, getSettings().origin_geopoint);
+    // create vehicle sim api
+    const auto &ned_transform = getGlobalNedTransform();
+    const auto &pawn_ned_pos = ned_transform.toLocalNed(vehicle_pawn->GetActorLocation());
+    const auto &home_geopoint = msr::airlib::EarthUtils::nedToGeodetic(pawn_ned_pos, getSettings().origin_geopoint);
     const std::string vehicle_name(TCHAR_TO_UTF8(*(vehicle_pawn->GetName())));
 
     PawnSimApi::Params pawn_sim_api_params(vehicle_pawn, &getGlobalNedTransform(), getVehiclePawnEvents(vehicle_pawn), getVehiclePawnCameras(vehicle_pawn), pip_camera_class, collision_display_template, home_geopoint, vehicle_name);
@@ -1781,12 +2023,13 @@ std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleApi(APawn* vehicle_pawn)
     return vehicle_sim_api;
 }
 
-bool ASimModeBase::createVehicleAtRuntime(const std::string& vehicle_name, const std::string& vehicle_type,
-                                          const msr::airlib::Pose& pose, const std::string& pawn_path)
+bool ASimModeBase::createVehicleAtRuntime(const std::string &vehicle_name, const std::string &vehicle_type,
+                                          const msr::airlib::Pose &pose, const std::string &pawn_path)
 {
     // Convert to lowercase as done during settings loading
     const std::string vehicle_type_lower = Utils::toLower(vehicle_type);
-    if (!isVehicleTypeSupported(vehicle_type_lower)) {
+    if (!isVehicleTypeSupported(vehicle_type_lower))
+    {
         Utils::log(Utils::stringf("Vehicle type %s is not supported in this game mode", vehicle_type.c_str()), Utils::kLogLevelWarn);
         return false;
     }
@@ -1796,7 +2039,7 @@ bool ASimModeBase::createVehicleAtRuntime(const std::string& vehicle_name, const
 
     // Retroactively adjust AirSimSettings, so it's like we knew about this vehicle all along
     AirSimSettings::singleton().addVehicleSetting(vehicle_name, vehicle_type_lower, pose, pawn_path);
-    const auto* vehicle_setting = getSettings().getVehicleSetting(vehicle_name);
+    const auto *vehicle_setting = getSettings().getVehicleSetting(vehicle_name);
 
     auto spawned_pawn = createVehiclePawn(*vehicle_setting);
     auto vehicle_sim_api = createVehicleApi(spawned_pawn);
@@ -1811,54 +2054,68 @@ bool ASimModeBase::createVehicleAtRuntime(const std::string& vehicle_name, const
 
 void ASimModeBase::setupVehiclesAndCamera()
 {
-    //get UU origin of global NED frame
+    // get UU origin of global NED frame
     const FTransform uu_origin = getGlobalNedTransform().getGlobalTransform();
 
-    //determine camera director camera default pose and spawn it
-    const auto& camera_director_setting = getSettings().camera_director;
+    // determine camera director camera default pose and spawn it
+    const auto &camera_director_setting = getSettings().camera_director;
     FVector camera_director_position_uu = uu_origin.GetLocation() +
                                           getGlobalNedTransform().fromLocalNed(camera_director_setting.position);
     FTransform camera_transform(toFRotator(camera_director_setting.rotation, FRotator::ZeroRotator),
                                 camera_director_position_uu);
     initializeCameraDirector(camera_transform, camera_director_setting.follow_distance);
 
-    //find all vehicle pawns
+    // find all vehicle pawns
     {
-        TArray<AActor*> pawns;
+        TArray<AActor *> pawns;
         getExistingVehiclePawns(pawns);
         bool haveUEPawns = pawns.Num() > 0;
-        APawn* fpv_pawn = nullptr;
+        APawn *fpv_pawn = nullptr;
 
-        if (haveUEPawns) {
-            fpv_pawn = static_cast<APawn*>(pawns[0]);
+        if (haveUEPawns)
+        {
+            fpv_pawn = static_cast<APawn *>(pawns[0]);
         }
-        else {
-            //add vehicles from settings
-            for (const auto& vehicle_setting_pair : getSettings().vehicles) {
-                //if vehicle is of type for derived SimMode and auto creatable
-                const auto& vehicle_setting = *vehicle_setting_pair.second;
+        else
+        {
+            // add vehicles from settings
+            bool fpv_flag = true;
+            for (const auto &vehicle_setting_pair : getSettings().vehicles)
+            {
+                // if vehicle is of type for derived SimMode and auto creatable
+                const auto &vehicle_setting = *vehicle_setting_pair.second;
                 if (vehicle_setting.auto_create &&
-                    isVehicleTypeSupported(vehicle_setting.vehicle_type)) {
+                    isVehicleTypeSupported(vehicle_setting.vehicle_type))
+                {
 
                     auto spawned_pawn = createVehiclePawn(vehicle_setting);
                     pawns.Add(spawned_pawn);
 
                     if (vehicle_setting.is_fpv_vehicle)
                         fpv_pawn = spawned_pawn;
+
+                    if (getSettings().simmode_name == "Both")
+                    {
+                        // if (vehicle_setting.vehicle_type == "PhysXCar" && fpv_flag){
+                        //     fpv_flag = false;
+                        //     fpv_pawn = spawned_pawn;
+                        // }
+                        addPawnToMap(spawned_pawn, vehicle_setting.vehicle_type);
+                    }
                 }
             }
         }
 
-
-        //add beacons from settings
-        for (auto const& beacon_setting_pair : getSettings().beacons)
+        // add beacons from settings
+        for (auto const &beacon_setting_pair : getSettings().beacons)
         {
-            //if vehicle is of type for derived SimMode and auto creatable
-            const auto& beacon_setting = *beacon_setting_pair.second;
-            //if (beacon_setting.auto_create &&
-                //isVehicleTypeSupported(beacon_setting.beacon_type)) {
-            if (beacon_setting.auto_create) {
-                //compute initial pose
+            // if vehicle is of type for derived SimMode and auto creatable
+            const auto &beacon_setting = *beacon_setting_pair.second;
+            // if (beacon_setting.auto_create &&
+            // isVehicleTypeSupported(beacon_setting.beacon_type)) {
+            if (beacon_setting.auto_create)
+            {
+                // compute initial pose
                 FVector spawn_position = uu_origin.GetLocation();
                 msr::airlib::Vector3r settings_position = beacon_setting.position;
                 /*FVector globalOffset = getGlobalNedTransform().getGlobalOffset();
@@ -1867,43 +2124,48 @@ void ASimModeBase::setupVehiclesAndCamera()
                 settings_position.y() += globalOffset.Y;
                 settings_position.z() += globalOffset.Z;*/
 
-
                 if (!msr::airlib::VectorMath::hasNan(settings_position))
                     spawn_position = getGlobalNedTransform().fromGlobalNed(settings_position);
                 FRotator spawn_rotation = toFRotator(beacon_setting.rotation, uu_origin.Rotator());
 
-                //spawn beacon pawn
+                // spawn beacon pawn
                 FActorSpawnParameters pawn_spawn_params;
                 FString comboName = beacon_setting.beacon_name.c_str() + FString(":") + beacon_setting.beacon_pawn_name.c_str();
                 pawn_spawn_params.Name = FName(*comboName);
                 pawn_spawn_params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-                //auto beacon_bp_class = UAirBlueprintLib::LoadClass(getSettings().pawn_paths.at(beacon_setting.beacon_pawn_name).pawn_bp);
-                //FActorSpawnParameters SpawnInfo;
-                // TODO: Make the child sim modes responsible for casting the types.
-                //ATemplateBeacon* spawned_beacon = static_cast<ATemplateBeacon*>(this->GetWorld()->SpawnActor(beacon_bp_class, &spawn_position, &spawn_rotation, pawn_spawn_params2));
+                // auto beacon_bp_class = UAirBlueprintLib::LoadClass(getSettings().pawn_paths.at(beacon_setting.beacon_pawn_name).pawn_bp);
+                // FActorSpawnParameters SpawnInfo;
+                //  TODO: Make the child sim modes responsible for casting the types.
+                // ATemplateBeacon* spawned_beacon = static_cast<ATemplateBeacon*>(this->GetWorld()->SpawnActor(beacon_bp_class, &spawn_position, &spawn_rotation, pawn_spawn_params2));
 
-                if (beacon_setting.beacon_type.compare("fiducialmarker") == 0) {
-                    AFiducialBeacon* spawned_beacon = static_cast<AFiducialBeacon*>(GetWorld()->SpawnActor<AFiducialBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                if (beacon_setting.beacon_type.compare("fiducialmarker") == 0)
+                {
+                    AFiducialBeacon *spawned_beacon = static_cast<AFiducialBeacon *>(GetWorld()->SpawnActor<AFiducialBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                     spawned_beacon->setScale(beacon_setting.scale);
                 }
-                else if (beacon_setting.beacon_type.compare("uwbbeacon") == 0) {
-                    AUWBBeacon* spawned_beacon = static_cast<AUWBBeacon*>(GetWorld()->SpawnActor<AUWBBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                else if (beacon_setting.beacon_type.compare("uwbbeacon") == 0)
+                {
+                    AUWBBeacon *spawned_beacon = static_cast<AUWBBeacon *>(GetWorld()->SpawnActor<AUWBBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                 }
-                else if (beacon_setting.beacon_type.compare("wifibeacon") == 0) {
-                    AWifiBeacon* spawned_beacon = static_cast<AWifiBeacon*>(GetWorld()->SpawnActor<AWifiBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                else if (beacon_setting.beacon_type.compare("wifibeacon") == 0)
+                {
+                    AWifiBeacon *spawned_beacon = static_cast<AWifiBeacon *>(GetWorld()->SpawnActor<AWifiBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                 }
-                else if (beacon_setting.beacon_type.compare("dynamicblockbeacon") == 0) {
-                    ADynamicBlockBeacon* spawned_beacon = static_cast<ADynamicBlockBeacon*>(GetWorld()->SpawnActor<ADynamicBlockBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                else if (beacon_setting.beacon_type.compare("dynamicblockbeacon") == 0)
+                {
+                    ADynamicBlockBeacon *spawned_beacon = static_cast<ADynamicBlockBeacon *>(GetWorld()->SpawnActor<ADynamicBlockBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                 }
-                else if (beacon_setting.beacon_type.compare("dynamicrackbeacon") == 0) {
-                    ADynamicRackBeacon* spawned_beacon = static_cast<ADynamicRackBeacon*>(GetWorld()->SpawnActor<ADynamicRackBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                else if (beacon_setting.beacon_type.compare("dynamicrackbeacon") == 0)
+                {
+                    ADynamicRackBeacon *spawned_beacon = static_cast<ADynamicRackBeacon *>(GetWorld()->SpawnActor<ADynamicRackBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                 }
-                else {
-                    ATemplateBeacon* spawned_beacon = static_cast<ATemplateBeacon*>(GetWorld()->SpawnActor<ATemplateBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
+                else
+                {
+                    ATemplateBeacon *spawned_beacon = static_cast<ATemplateBeacon *>(GetWorld()->SpawnActor<ATemplateBeacon>(spawn_position, spawn_rotation, pawn_spawn_params));
                 }
 
-                //this->GetWorld()->SpawnActor<AActor>(ATemplateBeacon)
+                // this->GetWorld()->SpawnActor<AActor>(ATemplateBeacon)
                 /*AActor* spawned_actor = static_cast<AActor*>(this->GetWorld()->SpawnActor(
                     beacon_bp_class, &spawn_position, &spawn_rotation, pawn_spawn_params2));
 
@@ -1917,24 +2179,25 @@ void ASimModeBase::setupVehiclesAndCamera()
             }
         }
 
-        //add passive echo beacons from settings
-        for (auto const& passive_echo_beacon_setting_pair : getSettings().passive_echo_beacons)
+        // add passive echo beacons from settings
+        for (auto const &passive_echo_beacon_setting_pair : getSettings().passive_echo_beacons)
         {
-            const auto& passive_echo_beacon_setting = *passive_echo_beacon_setting_pair.second;
-            //compute initial pose
-            if (passive_echo_beacon_setting.enable) {
+            const auto &passive_echo_beacon_setting = *passive_echo_beacon_setting_pair.second;
+            // compute initial pose
+            if (passive_echo_beacon_setting.enable)
+            {
                 FVector spawn_position = FVector(0, 0, 0);
                 msr::airlib::Vector3r settings_position = passive_echo_beacon_setting.position;
                 if (!msr::airlib::VectorMath::hasNan(settings_position))
                     spawn_position = global_ned_transform_->toFVector(settings_position, 100, true);
                 FRotator spawn_rotation = toFRotator(passive_echo_beacon_setting.rotation, FRotator());
 
-                //spawn passive echo beacon actor
+                // spawn passive echo beacon actor
                 FActorSpawnParameters actor_spawn_params;
                 actor_spawn_params.Name = FName(passive_echo_beacon_setting.name.c_str());
                 actor_spawn_params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
                 actor_spawn_params.bDeferConstruction = true;
-                APassiveEchoBeacon* spawned_passive_echo_beacon = static_cast<APassiveEchoBeacon*>(GetWorld()->SpawnActor<APassiveEchoBeacon>(spawn_position, spawn_rotation, actor_spawn_params));
+                APassiveEchoBeacon *spawned_passive_echo_beacon = static_cast<APassiveEchoBeacon *>(GetWorld()->SpawnActor<APassiveEchoBeacon>(spawn_position, spawn_rotation, actor_spawn_params));
                 spawned_passive_echo_beacon->enable_ = passive_echo_beacon_setting.enable;
                 spawned_passive_echo_beacon->name_ = FString(passive_echo_beacon_setting.name.c_str());
                 spawned_passive_echo_beacon->initial_directions_ = passive_echo_beacon_setting.initial_directions;
@@ -1957,9 +2220,10 @@ void ASimModeBase::setupVehiclesAndCamera()
             }
         }
 
-        //create API objects for each pawn we have
-        for (AActor* pawn : pawns) {
-            auto vehicle_pawn = static_cast<APawn*>(pawn);
+        // create API objects for each pawn we have
+        for (AActor *pawn : pawns)
+        {
+            auto vehicle_pawn = static_cast<APawn *>(pawn);
 
             auto vehicle_sim_api = createVehicleApi(vehicle_pawn);
             std::string vehicle_name = vehicle_sim_api->getVehicleName();
@@ -1971,8 +2235,9 @@ void ASimModeBase::setupVehiclesAndCamera()
         }
     }
 
-    if (getApiProvider()->hasDefaultVehicle()) {
-        //TODO: better handle no FPV vehicles scenario
+    if (getApiProvider()->hasDefaultVehicle())
+    {
+        // TODO: better handle no FPV vehicles scenario
         getVehicleSimApi()->possess();
         CameraDirector->initializeForBeginPlay(getInitialViewMode(), getVehicleSimApi()->getPawn(), getVehicleSimApi()->getCamera("fpv"), getVehicleSimApi()->getCamera("back_center"), nullptr);
     }
@@ -1982,55 +2247,55 @@ void ASimModeBase::setupVehiclesAndCamera()
     checkVehicleReady();
 }
 
-void ASimModeBase::registerPhysicsBody(msr::airlib::VehicleSimApiBase* physicsBody)
+void ASimModeBase::registerPhysicsBody(msr::airlib::VehicleSimApiBase *physicsBody)
 {
     // derived class shoudl override this method to add new vehicle to the physics engine
 }
 
-void ASimModeBase::getExistingVehiclePawns(TArray<AActor*>& pawns) const
+void ASimModeBase::getExistingVehiclePawns(TArray<AActor *> &pawns) const
 {
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
 }
 
-bool ASimModeBase::isVehicleTypeSupported(const std::string& vehicle_type) const
+bool ASimModeBase::isVehicleTypeSupported(const std::string &vehicle_type) const
 {
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
     return false;
 }
 
-std::string ASimModeBase::getVehiclePawnPathName(const AirSimSettings::VehicleSetting& vehicle_setting) const
+std::string ASimModeBase::getVehiclePawnPathName(const AirSimSettings::VehicleSetting &vehicle_setting) const
 {
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
     return "";
 }
 
-std::string ASimModeBase::getBeaconPawnPathName(const AirSimSettings::BeaconSetting& beacon_setting) const
+std::string ASimModeBase::getBeaconPawnPathName(const AirSimSettings::BeaconSetting &beacon_setting) const
 {
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
     return "";
 }
 
-PawnEvents* ASimModeBase::getVehiclePawnEvents(APawn* pawn) const
+PawnEvents *ASimModeBase::getVehiclePawnEvents(APawn *pawn) const
 {
     unused(pawn);
 
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
     return nullptr;
 }
-const common_utils::UniqueValueMap<std::string, APIPCamera*> ASimModeBase::getVehiclePawnCameras(APawn* pawn) const
+const common_utils::UniqueValueMap<std::string, APIPCamera *> ASimModeBase::getVehiclePawnCameras(APawn *pawn) const
 {
     unused(pawn);
 
-    //derived class should override this method to retrieve types of pawns they support
-    return common_utils::UniqueValueMap<std::string, APIPCamera*>();
+    // derived class should override this method to retrieve types of pawns they support
+    return common_utils::UniqueValueMap<std::string, APIPCamera *>();
 }
-void ASimModeBase::initializeVehiclePawn(APawn* pawn)
+void ASimModeBase::initializeVehiclePawn(APawn *pawn)
 {
     unused(pawn);
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
 }
 std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleSimApi(
-    const PawnSimApi::Params& pawn_sim_api_params) const
+    const PawnSimApi::Params &pawn_sim_api_params) const
 {
     unused(pawn_sim_api_params);
     auto sim_api = std::unique_ptr<PawnSimApi>();
@@ -2038,10 +2303,10 @@ std::unique_ptr<PawnSimApi> ASimModeBase::createVehicleSimApi(
 
     return sim_api;
 }
-msr::airlib::VehicleApiBase* ASimModeBase::getVehicleApi(const PawnSimApi::Params& pawn_sim_api_params,
-                                                         const PawnSimApi* sim_api) const
+msr::airlib::VehicleApiBase *ASimModeBase::getVehicleApi(const PawnSimApi::Params &pawn_sim_api_params,
+                                                         const PawnSimApi *sim_api) const
 {
-    //derived class should override this method to retrieve types of pawns they support
+    // derived class should override this method to retrieve types of pawns they support
     return nullptr;
 }
 
@@ -2051,21 +2316,25 @@ void ASimModeBase::drawDistanceSensorDebugPoints()
     if (getApiProvider() == nullptr)
         return;
 
-    for (auto& sim_api : getApiProvider()->getVehicleSimApis()) {
-        PawnSimApi* pawn_sim_api = static_cast<PawnSimApi*>(sim_api);
+    for (auto &sim_api : getApiProvider()->getVehicleSimApis())
+    {
+        PawnSimApi *pawn_sim_api = static_cast<PawnSimApi *>(sim_api);
         std::string vehicle_name = pawn_sim_api->getVehicleName();
 
-        msr::airlib::VehicleApiBase* api = getApiProvider()->getVehicleApi(vehicle_name);
+        msr::airlib::VehicleApiBase *api = getApiProvider()->getVehicleApi(vehicle_name);
 
-        if (api != nullptr) {
+        if (api != nullptr)
+        {
             msr::airlib::uint count_distance_sensors = api->getSensors().size(SensorType::Distance);
             Pose vehicle_pose = pawn_sim_api->getGroundTruthKinematics()->pose;
 
-            for (msr::airlib::uint i = 0; i < count_distance_sensors; i++) {
-                const msr::airlib::DistanceSimple* distance_sensor =
-                    static_cast<const msr::airlib::DistanceSimple*>(api->getSensors().getByType(SensorType::Distance, i));
+            for (msr::airlib::uint i = 0; i < count_distance_sensors; i++)
+            {
+                const msr::airlib::DistanceSimple *distance_sensor =
+                    static_cast<const msr::airlib::DistanceSimple *>(api->getSensors().getByType(SensorType::Distance, i));
 
-                if (distance_sensor != nullptr && distance_sensor->getParams().draw_debug_points) {
+                if (distance_sensor != nullptr && distance_sensor->getParams().draw_debug_points)
+                {
                     msr::airlib::DistanceSensorData distance_sensor_data = distance_sensor->getOutput();
 
                     // Find position of point hit
@@ -2086,10 +2355,21 @@ void ASimModeBase::drawDistanceSensorDebugPoints()
                         10, // size
                         FColor::Green,
                         false, // persistent (never goes away)
-                        0.03 // LifeTime: point leaves a trail on moving object
+                        0.03   // LifeTime: point leaves a trail on moving object
                     );
                 }
             }
         }
     }
+}
+void ASimModeBase::addPawnToMap(APawn *pawn, const std::string &vehicle_type) const
+{
+    pawn_to_vehicle_.insert(std::pair<APawn *, const std::string>(pawn, vehicle_type));
+}
+std::string ASimModeBase::getVehicleType(APawn *pawn) const
+{
+    std::map<APawn *, std::string>::const_iterator it = pawn_to_vehicle_.find(pawn);
+    if (it != pawn_to_vehicle_.end())
+        return it->second;
+    return nullptr;
 }

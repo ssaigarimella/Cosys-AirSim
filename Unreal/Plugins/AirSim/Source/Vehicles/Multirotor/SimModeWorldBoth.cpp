@@ -10,12 +10,14 @@
 #include "AirBlueprintLib.h"
 #include "vehicles/multirotor/api/MultirotorApiBase.hpp"
 #include "Vehicles/Car/CarPawnSimApi.h"
+// #include "CarPawnSimApi.h"
 #include "MultirotorPawnSimApi.h"
 #include "physics/PhysicsBody.hpp"
 #include "common/ClockFactory.hpp"
 #include <memory>
 #include "vehicles/car/api/CarRpcLibServer.hpp"
 #include "vehicles/multirotor/api/MultirotorRpcLibServer.hpp"
+#include "common/SteppableClock.hpp"
 
 void ASimModeWorldBoth::BeginPlay()
 {
@@ -196,7 +198,7 @@ std::unique_ptr<PawnSimApi> ASimModeWorldBoth::createVehicleSimApi(
     if (vehicle_type == AirSimSettings::kVehicleTypePhysXCar)
     {
         auto vehicle_pawn = static_cast<TCarPawn *>(pawn_sim_api_params.pawn);
-        auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params, vehicle_pawn->getKeyBoardControls(), vehicle_pawn->getVehicleMovementComponent()));
+        auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params, vehicle_pawn->getKeyBoardControls()));
         vehicle_sim_api->initialize();
         // vehicle_sim_api->reset();
         return vehicle_sim_api;
