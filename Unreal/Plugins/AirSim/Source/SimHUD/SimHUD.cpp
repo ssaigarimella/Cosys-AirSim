@@ -5,6 +5,7 @@
 
 #include "Vehicles/Multirotor/SimModeWorldMultiRotor.h"
 #include "Vehicles/Multirotor/SimModeWorldBoth.h"
+#include "Vehicles/Multirotor/SimModeWorldHero.h"
 #include "Vehicles/Car/SimModeCar.h"
 #include "Vehicles/SkidSteer/SimModeSkidVehicle.h"
 #include "Vehicles/ComputerVision/SimModeComputerVision.h"
@@ -336,6 +337,10 @@ void ASimHUD::createSimMode()
         simmode_ = this->GetWorld()->SpawnActor<ASimModeWorldBoth>(FVector::ZeroVector,
                                                                    FRotator::ZeroRotator, simmode_spawn_params);
     
+    else if (simmode_name == "HERO")
+        simmode_ = this->GetWorld()->SpawnActor<ASimModeWorldHero>(FVector::ZeroVector,
+                                                                   FRotator::ZeroRotator, simmode_spawn_params);
+
     else
     {
         UAirBlueprintLib::ShowMessage(EAppMsgType::Ok, std::string("SimMode is not valid: ") + simmode_name, "Error");

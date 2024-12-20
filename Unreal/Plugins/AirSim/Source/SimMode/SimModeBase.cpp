@@ -2102,6 +2102,13 @@ void ASimModeBase::setupVehiclesAndCamera()
                         // }
                         addPawnToMap(spawned_pawn, vehicle_setting.vehicle_type);
                     }
+
+                    // NOTE by ssg: adding separate block here just to test, will put as or condition above 
+                    if (getSettings().simmode_name == "HERO")
+                    {
+                        addPawnToMap(spawned_pawn, vehicle_setting.vehicle_type);
+                    }
+
                 }
             }
         }
